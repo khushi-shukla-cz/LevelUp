@@ -1,0 +1,35 @@
+version: '3.9'
+
+# Development override — mounts source code for hot reload
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  executor:
+    build:
+      target: development
+    volumes:
+      - ./packages/executor:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: npm run dev
+
+  server:
+    build:
+      target: development
+    volumes:
+      - ./packages/server:/app
+      - /app/node_modules
+      - db_data:/app/data
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+
+  client:
+    build:
+      target: development
+    volumes:
+      - ./packages/client:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host
