@@ -1,0 +1,275 @@
+// LevelUp — Prisma Schema
+// Database: SQLite (abstracted via Prisma — swap to PostgreSQL by changing provider + url)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums (SQLite uses String — validated at app layer) ────────────────────
+
+// UserRole: "USER" | "ADMIN"
+// QuestType: "DAILY" | "STORY" | "BOSS" | "EVENT"
+// ProblemType: "CODING" | "MCQ" | "DEBUGGING" | "SYSTEM_DESIGN"
+// Difficulty: "EASY" | "MEDIUM" | "HARD" | "BOSS"
+// SubmissionResult: "ACCEPTED" | "WRONG_ANSWER" | "TIME_LIMIT" | "RUNTIME_ERROR" | "COMPILE_ERROR" | "PENDING"
+// Language: "PYTHON" | "JAVA"
+// OnboardingPath: "WEB_DEV" | "AI_ML" | "DSA" | "SYSTEM_DESIGN"
+
+// ─── User ───────────────────────────────────────────────────────────────────
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           String   @default("USER")       // "USER" | "ADMIN"
+  avatar         String?
+
+  // Progression
+  xp             Int      @default(0)
+  level          Int      @default(1)
+  coins          Int      @default(100)
+  streak         Int      @default(0)
+  lastActiveDate String?  // ISO date string for streak tracking
+
+  // Onboarding
+  onboardingDone    Boolean @default(false)
+  selectedPath      String? // "WEB_DEV" | "AI_ML" | "DSA" | "SYSTEM_DESIGN"
+  skillLevel        String? // "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+  dailyGoalHours    Int?    @default(1)
+
+  // World progression
+  currentWorldId    String?
+  currentWorld      World?  @relation(fields: [currentWorldId], references: [id])
+
+  // Relations
+  submissions       Submission[]
+  questProgress     UserQuestProgress[]
+  skillNodes        UserSkillNode[]
+  dailyQuestLogs    DailyQuestLog[]
+  leaderboardEntry  LeaderboardEntry?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([email])
+  @@index([xp])
+  @@index([level])
+}
+
+// ─── World ───────────────────────────────────────────────────────────────────
+model World {
+  id              String  @id @default(cuid())
+  slug            String  @unique  // e.g. "foundations"
+  name            String           // e.g. "World 1: Foundations"
+  description     String
+  narrative       String           // Story lore text
+  icon            String           // emoji or icon name
+  color           String           // hex color for theming
+  unlockLevel     Int     @default(1)
+  order           Int              // display order
+
+  // Relations
+  quests          Quest[]
+  problems        Problem[]
+  users           User[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([order])
+  @@index([unlockLevel])
+}
+
+// ─── Quest ───────────────────────────────────────────────────────────────────
+model Quest {
+  id              String  @id @default(cuid())
+  title           String
+  description     String
+  narrative       String?          // Story flavor text
+  type            String           // "DAILY" | "STORY" | "BOSS" | "EVENT"
+  difficulty      String           // "EASY" | "MEDIUM" | "HARD" | "BOSS"
+  xpReward        Int
+  coinReward      Int     @default(0)
+  order           Int     @default(0)
+  isActive        Boolean @default(true)
+  unlockLevel     Int     @default(1)
+
+  // World association
+  worldId         String
+  world           World   @relation(fields: [worldId], references: [id])
+
+  // Optional linked problem
+  problemId       String?
+  problem         Problem? @relation(fields: [problemId], references: [id])
+
+  // Relations
+  userProgress    UserQuestProgress[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([worldId])
+  @@index([type])
+  @@index([difficulty])
+}
+
+// ─── Problem ─────────────────────────────────────────────────────────────────
+model Problem {
+  id              String  @id @default(cuid())
+  title           String
+  slug            String  @unique
+  description     String  // Markdown supported
+  type            String  // "CODING" | "MCQ" | "DEBUGGING" | "SYSTEM_DESIGN"
+  difficulty      String  // "EASY" | "MEDIUM" | "HARD" | "BOSS"
+  tags            String  // JSON array string: ["arrays", "loops"]
+  xpReward        Int
+  timeLimit       Int     @default(30)  // minutes
+  order           Int     @default(0)
+
+  // World association
+  worldId         String
+  world           World   @relation(fields: [worldId], references: [id])
+
+  // Coding problems
+  starterCode     String? // JSON: { python: "...", java: "..." }
+  solution        String? // JSON: { python: "...", java: "..." }
+  testCases       String? // JSON array of { input, expectedOutput, isHidden }
+  constraints     String? // Markdown: "1 <= n <= 10^5"
+
+  // MCQ problems
+  mcqOptions      String? // JSON array of { id, text, isCorrect }
+  mcqExplanation  String?
+
+  // Debugging problems
+  buggyCode       String? // JSON: { python: "...", java: "..." }
+
+  // Relations
+  submissions     Submission[]
+  quests          Quest[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([worldId])
+  @@index([type])
+  @@index([difficulty])
+  @@index([slug])
+}
+
+// ─── Submission ───────────────────────────────────────────────────────────────
+model Submission {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problemId       String
+  problem         Problem  @relation(fields: [problemId], references: [id])
+
+  code            String
+  language        String   // "PYTHON" | "JAVA"
+  result          String   // "ACCEPTED" | "WRONG_ANSWER" | "TIME_LIMIT" | "RUNTIME_ERROR" | "COMPILE_ERROR" | "PENDING"
+  runtime         Int?     // ms
+  memoryUsed      Int?     // KB
+  testsPassed     Int      @default(0)
+  testsTotal      Int      @default(0)
+  errorMessage    String?
+  output          String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([problemId])
+  @@index([result])
+}
+
+// ─── UserQuestProgress ────────────────────────────────────────────────────────
+model UserQuestProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questId     String
+  quest       Quest    @relation(fields: [questId], references: [id])
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  attempts    Int      @default(0)
+
+  @@unique([userId, questId])
+  @@index([userId])
+  @@index([questId])
+}
+
+// ─── DailyQuestLog ────────────────────────────────────────────────────────────
+model DailyQuestLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // ISO date: "2024-01-15"
+  xpEarned  Int      @default(0)
+  completed Boolean  @default(false)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+// ─── SkillNode ────────────────────────────────────────────────────────────────
+model SkillNode {
+  id          String  @id @default(cuid())
+  name        String
+  description String
+  icon        String
+  category    String  // "FRONTEND" | "BACKEND" | "DSA" | "SYSTEM" | "AI"
+  xPosition   Float   // for tree visualization layout
+  yPosition   Float
+  unlockXP    Int     @default(0)
+  color       String  @default("#3B82F6")
+
+  // Tree structure
+  prerequisites String @default("[]") // JSON array of SkillNode ids
+
+  // Relations
+  userNodes   UserSkillNode[]
+
+  createdAt   DateTime @default(now())
+}
+
+// ─── UserSkillNode ─────────────────────────────────────────────────────────────
+model UserSkillNode {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillNodeId String
+  skillNode   SkillNode @relation(fields: [skillNodeId], references: [id])
+  unlocked    Boolean   @default(false)
+  unlockedAt  DateTime?
+
+  @@unique([userId, skillNodeId])
+}
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+model LeaderboardEntry {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank        Int      @default(0)
+  xp          Int      @default(0)
+  level       Int      @default(1)
+  streak      Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@index([xp])
+  @@index([rank])
+}
+
+// ─── Announcement ─────────────────────────────────────────────────────────────
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  type      String   @default("INFO") // "INFO" | "WARNING" | "SUCCESS" | "EVENT"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
