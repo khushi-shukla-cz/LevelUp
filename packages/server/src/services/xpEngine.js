@@ -1,7 +1,6 @@
 // packages/server/src/services/xpEngine.js
 // Central XP economy — all reward calculations go through here
 
-const prisma = require('./prisma');
 const logger = require('./logger');
 
 // ─── Level thresholds ─────────────────────────────────────────────────────────
@@ -45,6 +44,7 @@ const calculateXPReward = ({ baseXP, difficulty, streak = 0 }) => {
 
 // ─── Award XP to user ─────────────────────────────────────────────────────────
 async function awardXP(userId, xpAmount, reason = '') {
+  const prisma = require('./prisma');
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
 
@@ -77,6 +77,7 @@ async function awardXP(userId, xpAmount, reason = '') {
 
 // ─── Award coins ──────────────────────────────────────────────────────────────
 async function awardCoins(userId, amount) {
+  const prisma = require('./prisma');
   return prisma.user.update({
     where: { id: userId },
     data: { coins: { increment: amount } },
@@ -86,6 +87,7 @@ async function awardCoins(userId, amount) {
 
 // ─── Update streak ────────────────────────────────────────────────────────────
 async function updateStreak(userId) {
+  const prisma = require('./prisma');
   const user = await prisma.user.findUnique({ where: { id: userId } });
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -120,6 +122,7 @@ async function updateStreak(userId) {
 
 // ─── Rerank leaderboard ───────────────────────────────────────────────────────
 async function rerankLeaderboard() {
+  const prisma = require('./prisma');
   const entries = await prisma.leaderboardEntry.findMany({
     orderBy: { xp: 'desc' }
   });
