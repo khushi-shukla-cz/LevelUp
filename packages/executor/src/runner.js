@@ -28,6 +28,30 @@ const LANG_CONFIG = {
   },
 };
 
+const normalizeOutput = (value) => (value || '').trim();
+
+const isCompileErrorMessage = (message) => {
+  const normalized = (message || '').toLowerCase();
+  return normalized.includes('syntaxerror') ||
+    normalized.includes('error:') ||
+    normalized.includes('exception in thread') ||
+    normalized.includes('compile error');
+};
+
+const classifyTestCaseResult = ({ stdout, stderr, timedOut, expectedOutput }) => {
+  const actualOutput = normalizeOutput(stdout);
+  const normalizedExpected = normalizeOutput(expectedOutput);
+  const normalizedError = normalizeOutput(stderr);
+
+  return {
+    actualOutput,
+    expectedOutput: normalizedExpected,
+    passed: !timedOut && !normalizedError && actualOutput === normalizedExpected,
+    errorMessage: timedOut ? 'Time limit exceeded' : (normalizedError || null),
+    isCompileError: isCompileErrorMessage(normalizedError),
+  };
+};
+
 // ─── Pull image if not present ────────────────────────────────────────────────
 const pulledImages = new Set();
 
@@ -165,28 +189,27 @@ async function runWithTestCases({ execId, code, language, testCases, timeoutMs, 
 
     totalRuntime += runtime;
 
-    const actualOutput = stdout.trim();
-    const expectedOutput = (tc.expectedOutput || '').trim();
-    const isCorrect = !timedOut && !stderr && actualOutput === expectedOutput;
+    const classified = classifyTestCaseResult({
+      stdout,
+      stderr,
+      timedOut,
+      expectedOutput: tc.expectedOutput,
+    });
 
-    if (isCorrect) passed++;
+    if (classified.passed) passed++;
 
     results.push({
       testCase: i + 1,
-      passed: isCorrect,
+      passed: classified.passed,
       input: tc.input,
-      expectedOutput,
-      actualOutput,
+      expectedOutput: classified.expectedOutput,
+      actualOutput: classified.actualOutput,
       runtime,
-      errorMessage: timedOut ? 'Time limit exceeded' : (stderr || null),
+      errorMessage: classified.errorMessage,
     });
 
     // Short-circuit on compile error (first test case)
-    if (i === 0 && stderr && (
-      stderr.includes('SyntaxError') ||
-      stderr.includes('error:') ||
-      stderr.includes('Exception in thread')
-    )) {
+    if (i === 0 && classified.isCompileError) {
       // Fill remaining test cases as failed
       for (let j = i + 1; j < testCases.length; j++) {
         results.push({
@@ -227,4 +250,4 @@ async function runSingle({ execId, code, language, input, timeoutMs, memoryMb })
   };
 }
 
-module.exports = { runWithTestCases, runSingle };
+module.exports = { runWithTestCases, runSingle, classifyTestCaseResult, isCompileErrorMessage };
