@@ -2,6 +2,7 @@
 const axios = require('axios');
 const prisma = require('../services/prisma');
 const { awardXP, awardCoins, updateStreak, calculateXPReward } = require('../services/xpEngine');
+const { determineSubmissionResult } = require('../services/submissionOutcome');
 const logger = require('../services/logger');
 
 const EXECUTOR_URL = process.env.EXECUTOR_URL || 'http://localhost:5000';
@@ -66,11 +67,7 @@ const submitCode = async (req, res, next) => {
     // Process results
     const { passed, total, runtime, errorMessage, output, results } = executionResult;
     const allPassed = passed === total;
-    const result = allPassed ? 'ACCEPTED'
-      : errorMessage?.includes('Time limit') ? 'TIME_LIMIT'
-      : errorMessage?.includes('compile') || errorMessage?.includes('SyntaxError') ? 'COMPILE_ERROR'
-      : errorMessage ? 'RUNTIME_ERROR'
-      : 'WRONG_ANSWER';
+    const result = determineSubmissionResult({ passed, total, errorMessage });
 
     // Update submission
     const updatedSubmission = await prisma.submission.update({
