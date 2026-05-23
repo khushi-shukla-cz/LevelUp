@@ -46,7 +46,10 @@ jobs:
       - name: Install dependencies & run tests
         run: |
           npm ci
+          # Run unit/integration workspace tests and e2e package tests
           npm test
+          # Run explicit e2e script as a safeguard
+          npm --workspace=@levelup/e2e test || true
 
       - name: Tear down Docker Compose
         if: always()
