@@ -339,6 +339,34 @@ docker-compose down
 docker-compose down -v
 ```
 
+### Git helper scripts
+
+Two small helper scripts are included to simplify committing and pushing changes locally.
+
+- Bash (Linux / macOS / WSL): `scripts/git-commit-push.sh`
+- PowerShell (Windows): `scripts/git-commit-push.ps1`
+
+Examples:
+
+```bash
+# Commit all changes and push
+./scripts/git-commit-push.sh "chore: my commit message"
+
+# Commit specific files
+./scripts/git-commit-push.sh "fix: update README" README.md packages/server/src/index.js
+```
+
+Windows PowerShell:
+
+```powershell
+# Commit all changes
+.\scripts\git-commit-push.ps1 -Message "chore: my commit message"
+
+# Commit specific files
+.\scripts\git-commit-push.ps1 -Message "fix: update README" -Files README.md,packages/server/src/index.js
+```
+
+
 ---
 
 ## Environment Variables
