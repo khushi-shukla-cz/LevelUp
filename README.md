@@ -355,6 +355,18 @@ docker-compose down -v
 | `VITE_WS_URL` | `ws://localhost:4000` | WebSocket URL for Socket.io |
 | `SENTRY_DSN` | *(optional)* | Sentry DSN for error monitoring (leave empty to disable) |
 
+### Sentry & GitHub Secrets
+
+To enable error reporting from CI and services, add your Sentry DSN as a GitHub Secret named `SENTRY_DSN` in the repository settings.
+
+1. Go to your repository → Settings → Secrets and variables → Actions → New repository secret.
+2. Name: `SENTRY_DSN`
+3. Value: your Sentry project DSN (starts with `https://`)
+
+Workflows automatically map the secret into `SENTRY_DSN` and set `SENTRY_RELEASE` to the commit SHA.
+
+If you prefer to keep Sentry disabled in CI, leave the secret empty.
+
 ---
 
 ## API Reference

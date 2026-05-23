@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SENTRY_RELEASE: ${{ github.sha }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
