@@ -798,3 +798,38 @@ SOFTWARE.
 *Stop watching tutorials. Start proving skills.*
 
 </div>
+
+## Testing & CI
+
+Local test commands (monorepo):
+
+```bash
+# from repo root - runs tests for packages that expose `test` scripts
+npm test --workspaces --if-present
+
+# run server tests only
+cd packages/server && npm test
+
+# run executor tests only
+cd packages/executor && npm test
+
+# run client tests placeholder (if added)
+cd packages/client && npm test
+```
+
+CI
+
+- This repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` that installs dependencies and runs workspace tests on Node 18.
+- There's an additional e2e/workflow planned for Docker Compose based integration tests (uses services: `server`, `executor`, `client`) — see the `/.github/workflows` folder for available workflows.
+
+Troubleshooting
+
+- If CI fails due to the database or Prisma migrations, ensure `DATABASE_URL` is set correctly for the runner or use the SQLite defaults for unit tests.
+- To run Docker Compose e2e locally:
+
+```bash
+docker-compose up --build
+# then, in another terminal, run the workspace tests or API checks
+npm test --workspaces --if-present
+```
+
