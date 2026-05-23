@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SENTRY_RELEASE: ${{ github.sha }}
     strategy:
       matrix:
         node-version: [18.x]

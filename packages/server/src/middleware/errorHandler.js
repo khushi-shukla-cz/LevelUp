@@ -1,5 +1,9 @@
 // packages/server/src/middleware/errorHandler.js
 const logger = require('../services/logger');
+let Sentry;
+if (process.env.SENTRY_DSN) {
+  try { Sentry = require('@sentry/node'); } catch (e) { Sentry = null; }
+}
 
 const errorHandler = (err, req, res, next) => {
   logger.error(`${err.name}: ${err.message}`, {
@@ -7,6 +11,10 @@ const errorHandler = (err, req, res, next) => {
     path: req.path,
     method: req.method,
   });
+
+  if (Sentry) {
+    try { Sentry.captureException(err); } catch (e) { /* ignore */ }
+  }
 
   // Prisma errors
   if (err.code === 'P2002') {

@@ -1,5 +1,19 @@
 // packages/executor/src/index.js
 require('dotenv').config();
+let Sentry;
+if (process.env.SENTRY_DSN) {
+  try {
+    Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      release: process.env.SENTRY_RELEASE || process.env.GITHUB_SHA,
+      tracesSampleRate: 0.0,
+    });
+  } catch (e) {
+    Sentry = null;
+  }
+}
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -62,6 +76,9 @@ app.post('/execute', execLimiter, async (req, res) => {
     res.json(result);
   } catch (err) {
     logger.error(`[${execId}] Execution error: ${err.message}`);
+    if (Sentry) {
+      try { Sentry.captureException(err); } catch (e) { /* ignore */ }
+    }
     res.status(500).json({
       passed: 0,
       total: testCases.length,
@@ -88,6 +105,9 @@ app.post('/run', execLimiter, async (req, res) => {
     });
     res.json(result);
   } catch (err) {
+    if (Sentry) {
+      try { Sentry.captureException(err); } catch (e) { /* ignore */ }
+    }
     res.status(500).json({ error: err.message, output: '' });
   }
 });
@@ -96,3 +116,14 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   logger.info(`⚡ Executor service running on port ${PORT}`);
 });
+
+if (Sentry) {
+  process.on('unhandledRejection', (reason) => {
+    try { Sentry.captureException(reason); } catch (e) { /* ignore */ }
+  });
+  process.on('uncaughtException', (err) => {
+    try { Sentry.captureException(err); } catch (e) { /* ignore */ }
+    // allow process to crash after reporting
+    setTimeout(() => process.exit(1), 1000);
+  });
+}

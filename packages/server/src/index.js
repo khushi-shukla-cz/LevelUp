@@ -1,5 +1,20 @@
 // packages/server/src/index.js
 require('dotenv').config();
+let Sentry;
+if (process.env.SENTRY_DSN) {
+  try {
+    Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      release: process.env.SENTRY_RELEASE || process.env.GITHUB_SHA,
+      tracesSampleRate: 0.0,
+    });
+  } catch (e) {
+    // optional dependency not installed or failed to init
+    Sentry = null;
+  }
+}
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -25,6 +40,10 @@ const { notFound } = require('./middleware/notFound');
 
 const app = express();
 const httpServer = http.createServer(app);
+
+if (Sentry) {
+  app.use(Sentry.Handlers.requestHandler());
+}
 
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 const io = new Server(httpServer, {
@@ -101,6 +120,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
+if (Sentry) {
+  app.use(Sentry.Handlers.errorHandler());
+}
 app.use(notFound);
 app.use(errorHandler);
 

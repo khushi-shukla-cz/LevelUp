@@ -353,6 +353,7 @@ docker-compose down -v
 | `MAX_MEMORY` | `128m` | Docker memory limit per execution container |
 | `VITE_API_URL` | `http://localhost:4000` | API base URL for frontend |
 | `VITE_WS_URL` | `ws://localhost:4000` | WebSocket URL for Socket.io |
+| `SENTRY_DSN` | *(optional)* | Sentry DSN for error monitoring (leave empty to disable) |
 
 ---
 
