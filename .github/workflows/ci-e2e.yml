@@ -1,0 +1,52 @@
+name: CI - Docker Compose E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Start Docker Compose services
+        run: |
+          if command -v docker-compose >/dev/null 2>&1; then DC=docker-compose; else DC="docker compose"; fi
+          $DC -f docker-compose.yml -f docker-compose.dev.yml up --build -d
+
+      - name: Wait for services to become healthy
+        run: |
+          set -e
+          echo "Waiting for server (http://localhost:4000/health)..."
+          for i in $(seq 1 60); do
+            if curl -sSf http://localhost:4000/health >/dev/null 2>&1; then echo "server up"; break; fi
+            sleep 2
+          done
+          echo "Waiting for executor (http://localhost:5000/health)..."
+          for i in $(seq 1 60); do
+            if curl -sSf http://localhost:5000/health >/dev/null 2>&1; then echo "executor up"; break; fi
+            sleep 2
+          done
+
+      - name: Install dependencies & run tests
+        run: |
+          npm ci
+          npm test
+
+      - name: Tear down Docker Compose
+        if: always()
+        run: |
+          if command -v docker-compose >/dev/null 2>&1; then DC=docker-compose; else DC="docker compose"; fi
+          $DC -f docker-compose.yml -f docker-compose.dev.yml down -v
