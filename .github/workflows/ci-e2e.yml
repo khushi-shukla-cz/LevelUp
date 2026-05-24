@@ -45,11 +45,16 @@ jobs:
 
       - name: Install dependencies & run tests
         run: |
+          set -e
+          # Install workspace dependencies and run unit/integration tests
           npm ci
-          # Run unit/integration workspace tests and e2e package tests
           npm test
-          # Run explicit e2e script as a safeguard
-          npm --workspace=@levelup/e2e test || true
+
+          # Explicitly install and run E2E package tests to avoid workspace lockfile issues
+          echo "Running e2e tests from packages/e2e"
+          cd packages/e2e
+          npm ci
+          npm test
 
       - name: Tear down Docker Compose
         if: always()
