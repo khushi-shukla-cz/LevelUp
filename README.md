@@ -385,15 +385,23 @@ Windows PowerShell:
 
 ### Sentry & GitHub Secrets
 
-To enable error reporting from CI and services, add your Sentry DSN as a GitHub Secret named `SENTRY_DSN` in the repository settings.
+To enable error reporting and automatic source-map uploads, add the following GitHub Secrets in your repository settings:
 
 1. Go to your repository → Settings → Secrets and variables → Actions → New repository secret.
-2. Name: `SENTRY_DSN`
-3. Value: your Sentry project DSN (starts with `https://`)
 
-Workflows automatically map the secret into `SENTRY_DSN` and set `SENTRY_RELEASE` to the commit SHA.
+- `SENTRY_DSN` — your server-side Sentry DSN (starts with `https://`). Used by `server` and `executor` services.
+- `SENTRY_AUTH_TOKEN` — a Sentry auth token with `project:releases` scope used by CI to create releases and upload source maps.
+- `SENTRY_ORG` — your Sentry organization slug.
+- `SENTRY_PROJECT` — your Sentry project slug for the frontend (used when uploading client sourcemaps).
 
-If you prefer to keep Sentry disabled in CI, leave the secret empty.
+When these secrets are present, the repository workflow `/.github/workflows/sentry-release.yml` will create a release named with the commit SHA and upload `packages/client` source maps after a successful build. If you don't set `SENTRY_AUTH_TOKEN`, the workflow will be skipped.
+
+Additionally, to enable client-side error reporting at runtime, set the Vite env variables in your `.env` (or CI environment):
+
+- `VITE_SENTRY_DSN` — (optional) DSN for the browser SDK (leave empty to disable client reporting).
+- `VITE_SENTRY_RELEASE` — (optional) release identifier to associate client errors with a Sentry release (defaults to the commit SHA in CI).
+
+If you prefer to keep Sentry disabled in CI or locally, leave the secrets/vars empty.
 
 ---
 
