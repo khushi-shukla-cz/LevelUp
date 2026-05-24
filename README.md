@@ -32,6 +32,7 @@
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
+- [Deployment & Branch Protection](#deployment--branch-protection)
 - [API Reference](#api-reference)
 - [XP Economy](#xp-economy)
 - [Code Execution Engine](#code-execution-engine)
@@ -402,6 +403,49 @@ Additionally, to enable client-side error reporting at runtime, set the Vite env
 - `VITE_SENTRY_RELEASE` — (optional) release identifier to associate client errors with a Sentry release (defaults to the commit SHA in CI).
 
 If you prefer to keep Sentry disabled in CI or locally, leave the secrets/vars empty.
+
+---
+
+## Deployment & Branch Protection
+
+### Production Approval Gate
+
+Deployment is scaffolded with `/.github/workflows/deploy.yml` using GitHub Environments.
+
+1. Create environments in GitHub:
+  - `staging`
+  - `production`
+2. In `Settings -> Environments -> production`, add:
+  - Required reviewers (team or maintainers)
+  - Optional wait timer
+3. Add environment secrets for both `staging` and `production`:
+  - `DEPLOY_HOST`, `DEPLOY_PORT`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`
+  - `JWT_SECRET`, `DATABASE_URL`
+  - `VITE_API_URL`, `VITE_WS_URL`
+  - Optional: `SENTRY_DSN`, `VITE_SENTRY_DSN`
+
+When you run the Deploy workflow with `environment=production`, GitHub pauses the job until required reviewers approve.
+
+### Protected Branches (Recommended)
+
+Set branch protection for `main` in `Settings -> Branches -> Add rule`:
+
+- Require a pull request before merging
+- Require approvals (recommended: 1-2)
+- Require status checks to pass before merging
+- Require branches to be up to date before merging
+- Restrict who can push to matching branches
+- Do not allow force pushes
+- Do not allow deletions
+
+Recommended required checks:
+
+- `CI / test`
+- `CI - Docker Compose E2E / e2e`
+
+If you keep Sentry release upload enabled, also consider requiring:
+
+- `Upload Sentry sourcemaps / sentry-release`
 
 ---
 

@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      ref:
+        description: Git ref to deploy (branch, tag, or SHA)
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Use GitHub Environments so production can require manual approvers.
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      SENTRY_RELEASE: ${{ github.sha }}
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      VITE_WS_URL: ${{ secrets.VITE_WS_URL }}
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY JWT_SECRET DATABASE_URL VITE_API_URL VITE_WS_URL; do
+            if [ -z "${!key:-}" ]; then
+              echo "Missing required secret: $key"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -eq 1 ]]; then
+            exit 1
+          fi
+
+      - name: Write deploy env file from GitHub Secrets
+        run: |
+          set -euo pipefail
+          cat > .env.deploy <<EOF
+          NODE_ENV=production
+          JWT_SECRET=${JWT_SECRET}
+          DATABASE_URL=${DATABASE_URL}
+          SENTRY_DSN=${SENTRY_DSN}
+          SENTRY_RELEASE=${SENTRY_RELEASE}
+          VITE_API_URL=${VITE_API_URL}
+          VITE_WS_URL=${VITE_WS_URL}
+          VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+          EOF
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          touch ~/.ssh/known_hosts
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload compose and env files
+        run: |
+          set -euo pipefail
+          REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh -p "${DEPLOY_PORT:-22}" "$REMOTE" "mkdir -p ~/apps/levelup"
+          scp -P "${DEPLOY_PORT:-22}" docker-compose.yml "$REMOTE":~/apps/levelup/docker-compose.yml
+          scp -P "${DEPLOY_PORT:-22}" .env.deploy "$REMOTE":~/apps/levelup/.env
+
+      - name: Deploy on target host
+        run: |
+          set -euo pipefail
+          REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh -p "${DEPLOY_PORT:-22}" "$REMOTE" '
+            set -e
+            cd ~/apps/levelup
+            if command -v docker-compose >/dev/null 2>&1; then
+              DC=docker-compose
+            else
+              DC="docker compose"
+            fi
+            $DC --env-file .env pull || true
+            $DC --env-file .env up -d --build
+          '
+
+      - name: Cleanup local secret artifacts
+        if: always()
+        run: rm -f .env.deploy
